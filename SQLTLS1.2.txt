@@ -1,0 +1,20 @@
+SELECT SERVERPROPERTY('ProductVersion'), SERVERPROPERTY('ProductLevel')
+Then, compare this version with minimum versions from Microsoft for each product level/version (you'll have to customize the method to check if the build version is at least as high for each level).
+
+SQL Server release - First build that supports TLS 1.2
+
+SQL Server 2014 SP1 - 12.0.4439.1
+SQL Server 2014 SP1 GDR - 12.0.4219.0
+SQL Server 2014 RTM - 12.0.2564.0
+SQL Server 2014 RTM GDR - 12.0.2271.0
+SQL Server 2012 SP3 GDR - 11.0.6216.27
+SQL Server 2012 SP3 - 11.0.6518.0
+SQL Server 2012 SP2 GDR - 11.0.5352.0
+SQL Server 2012 SP2 - 11.0.5644.2
+SQL Server 2008 R2 SP3 - 10.50.6542.0
+SQL Server 2008 R2 SP2 GDR (IA-64 only) - 10.50.4047.0
+SQL Server 2008 R2 SP2 (IA-64 only) - 10.50.4344.0
+SQL Server 2008 SP4 - 10.0.6547.0
+SQL Server 2008 SP3 GDR (IA-64 only) - 10.0.5545.0
+SQL Server 2008 SP3 (IA-64 only) - 10.0.5896.0
+Source: https://support.microsoft.com/en-us/help/3135244/tls-1.2-support-for-microsoft-sql-ser
