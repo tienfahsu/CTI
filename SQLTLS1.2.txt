@@ -18,3 +18,7 @@ SQL Server 2008 SP4 - 10.0.6547.0
 SQL Server 2008 SP3 GDR (IA-64 only) - 10.0.5545.0
 SQL Server 2008 SP3 (IA-64 only) - 10.0.5896.0
 Source: https://support.microsoft.com/en-us/help/3135244/tls-1.2-support-for-microsoft-sql-ser
+
+
+System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
+  
