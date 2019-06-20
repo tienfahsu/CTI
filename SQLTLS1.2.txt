@@ -23,3 +23,5 @@ Source: https://support.microsoft.com/en-us/help/3135244/tls-1.2-support-for-mic
 System.Net.ServicePointManager.SecurityProtocol = System.Net.SecurityProtocolType.Tls12;
   
 SQL2012 11.0.7462.6	SP4
+
+https://support.microsoft.com/en-ph/help/3135244/tls-1-2-support-for-microsoft-sql-server
