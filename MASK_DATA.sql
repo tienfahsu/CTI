@@ -1,3 +1,4 @@
+  
 -- ================================================
 -- Template generated from Template Explorer using:
 -- Create Scalar Function (New Menu).SQL
@@ -34,13 +35,11 @@ BEGIN
 	DECLARE @DATALEN INT
     DECLARE @RETTMP VARCHAR(512),@CHARITEM INT	 
 	DECLARE @ILEN INT,@EXIDX INT,@POS INT = 1
-
-
-
-
+ 
 	SET @RETDATA = RTRIM(LTRIM(REPLACE(ISNULL(@PIIDATA,''),'　',' ')))
 	SET @DATALEN = LEN(@RETDATA)
  
+
 	IF @PIITYPE =1
 	BEGIN
 	  -- NAME
@@ -125,4 +124,3 @@ BEGIN
 	RETURN @RETDATA
 END
 GO
-
