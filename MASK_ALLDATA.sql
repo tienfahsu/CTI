@@ -44,7 +44,7 @@ BEGIN
 				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
 				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',4)'
 				END
-                                ELSE IF @COLUMN_NAME IN ('ADDR','ADD1','ADD2')
+                                ELSE IF @COLUMN_NAME IN ('ADDR','ADD1','ADD2','ADDRESS','ADDR_1','ADDR_2')
 				BEGIN
 				    IF LEN(@columnList) >0 SET @columnList=@columnList+','
 				    SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',5)'
