@@ -24,7 +24,7 @@ BEGIN
 			FETCH NEXT FROM CUR_COLUMNS INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH
 			WHILE @@FETCH_STATUS = 0  
 			BEGIN
-				IF @COLUMN_NAME IN ('acctnmbr','cardnmbr','cust_nbr','clnt_nbr','fmsacctno','reln_nbr','cardnmbr_o','RW_ACCTBR')
+				IF @COLUMN_NAME IN ('acctnmbr','cardnmbr','cust_nbr','clnt_nbr','fmsacctno','reln_nbr','cardnmbr_o','RW_ACCTBR','RWACCT_B','RWACT_CARD','ACCT')
 				BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',3)'
@@ -34,22 +34,22 @@ BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',2)'
 				END
-				ELSE IF @COLUMN_NAME IN ('custname','cust_name') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
+				ELSE IF @COLUMN_NAME IN ('custname','cust_name','CNAME') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
 				BEGIN
 				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
-					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',1)'
+				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',1)'
 				END
-				ELSE IF @COLUMN_NAME IN ('tel_buss','tel_home','tel_mobl','tel_othr') 
+				ELSE IF @COLUMN_NAME IN ('tel_buss','tel_home','tel_mobl','tel_othr','TEL') 
 				BEGIN
 				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
-					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',4)'
+				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',4)'
 				END
-
-				IF @TABLE_NAME LIKE 'MELITA_ALL_PRE%' AND @COLUMN_NAME='CNAME' 
+                                ELSE IF @COLUMN_NAME IN ('ADDR')
 				BEGIN
-				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
-					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',1)'
+				    IF LEN(@columnList) >0 SET @columnList=@columnList+','
+				    SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',5)'
 				END
+			 
 
 
 				FETCH NEXT FROM CUR_COLUMNS INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH
