@@ -1,25 +1,9 @@
-  
--- ================================================
--- Template generated from Template Explorer using:
--- Create Scalar Function (New Menu).SQL
---
--- Use the Specify Values for Template Parameters 
--- command (Ctrl-Shift-M) to fill in the parameter 
--- values below.
---
--- This block of comments will not be included in
--- the definition of the function.
--- ================================================
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
 -- =============================================
--- Author:		alpha hsu	
+-- Author: alpha hsu	
 -- Create date: 2019/06/21
 -- Description:	MASK DATA
 -- =============================================
-ALTER FUNCTION MASK_DATA
+ALTER FUNCTION [dbo].[MASK_DATA]
 (
 	-- Add the parameters for the function here
 	 @PIIDATA varchar(512),
@@ -56,16 +40,17 @@ BEGIN
 		 
 	   IF @DATALEN > 5
 	   BEGIN
-		 SET @EXIDX=0
+		  
 	     SET @RETTMP = SUBSTRING(@RETDATA,4,@DATALEN-3)
 		 SET @ILEN =LEN(@RETTMP)
-		  
+		 SET @EXIDX= ASCII(SUBSTRING(@RETTMP,@POS,1)) % 2	 
+		 		  
 	     SET @RETDATA = LEFT(@RETDATA,3) --+ REPLICATE('*',@DATALEN-5) + RIGHT(@RETDATA,2)
 		 WHILE @POS <= @ILEN - 2
 		 BEGIN
 			   SET @CHARITEM = ASCII(SUBSTRING(@RETTMP,@POS,1))
 			   IF @CHARITEM >= 48 AND @CHARITEM <= 57
-			       SET @RETDATA =@RETDATA + CHAR(ASCII(@POS)+49+@EXIDX*10)
+			       SET @RETDATA =@RETDATA + CHAR(@CHARITEM+49+@EXIDX*10)
 			   ELSE 
 				   SET @RETDATA =@RETDATA + CHAR(@CHARITEM);
 			   SET @POS=@POS+1
@@ -84,15 +69,17 @@ BEGIN
 	    -- ACCOUNT 
 	   IF @DATALEN > 10
 	   BEGIN
-	     SET @EXIDX=0
+	     
 	     SET @RETTMP = SUBSTRING(@RETDATA,9,@DATALEN-8)
 		 SET @ILEN =LEN(@RETTMP)		  
+		 SET @EXIDX= ASCII(SUBSTRING(@RETTMP,@POS,1)) % 2	 
+		 		  
 	     SET @RETDATA =LEFT(@RETDATA,8) --+ REPLICATE('*',@DATALEN-5) + RIGHT(@RETDATA,2)
 		 WHILE @POS <= @ILEN - 2
 		 BEGIN
 			   SET @CHARITEM = ASCII(SUBSTRING(@RETTMP,@POS,1))
 			   IF @CHARITEM >= 48 AND @CHARITEM <= 57
-			       SET @RETDATA =@RETDATA + CHAR(ASCII(@POS)+49+@EXIDX*10)
+			       SET @RETDATA =@RETDATA + CHAR(@CHARITEM+49+@EXIDX*10)
 			   ELSE 
 				   SET @RETDATA =@RETDATA + CHAR(@CHARITEM);
 			   SET @POS=@POS+1
@@ -123,4 +110,3 @@ BEGIN
 	END
 	RETURN @RETDATA
 END
-GO
