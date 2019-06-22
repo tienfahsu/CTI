@@ -24,17 +24,17 @@ BEGIN
 			FETCH NEXT FROM CUR_COLUMNS INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH
 			WHILE @@FETCH_STATUS = 0  
 			BEGIN
-				IF @COLUMN_NAME IN ('acctnmbr','cardnmbr','cust_nbr','clnt_nbr','fmsacctno','reln_nbr','cardnmbr_o')
+				IF @COLUMN_NAME IN ('acctnmbr','cardnmbr','cust_nbr','clnt_nbr','fmsacctno','reln_nbr','cardnmbr_o','RW_ACCTBR')
 				BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',3)'
 				END
-				ELSE IF @COLUMN_NAME IN ('custid','id_tag')
+				ELSE IF @COLUMN_NAME IN ('custid','id_tag','IDN_BAN','idno','idn','IDNO_O')
 				BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',2)'
 				END
-				ELSE IF @COLUMN_NAME IN ('custname','cust_name') OR (@TABLE_NAME LIKE 'Payment_All_Detail%' AND @COLUMN_NAME='NAME')
+				ELSE IF @COLUMN_NAME IN ('custname','cust_name') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
 				BEGIN
 				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',1)'
