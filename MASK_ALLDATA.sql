@@ -34,17 +34,17 @@ BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',2)'
 				END
-				ELSE IF @COLUMN_NAME IN ('custname','cust_name','CNAME') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
+				ELSE IF @COLUMN_NAME IN ('custname','cust_name','CNAME','C_NAME') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
 				BEGIN
 				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
 				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',1)'
 				END
-				ELSE IF @COLUMN_NAME IN ('tel_buss','tel_home','tel_mobl','tel_othr','TEL') 
+				ELSE IF @COLUMN_NAME IN ('tel_buss','tel_home','tel_mobl','tel_othr','TEL','O_TEL','H_TEL','F_TEL','M_TEL')  
 				BEGIN
 				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
 				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',4)'
 				END
-                                ELSE IF @COLUMN_NAME IN ('ADDR')
+                                ELSE IF @COLUMN_NAME IN ('ADDR','ADD1','ADD2')
 				BEGIN
 				    IF LEN(@columnList) >0 SET @columnList=@columnList+','
 				    SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',5)'
