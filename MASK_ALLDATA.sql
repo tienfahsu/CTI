@@ -29,7 +29,7 @@ BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',3)'
 				END
-				ELSE IF @COLUMN_NAME IN ('custid','id_tag','IDN_BAN','idno','idn','IDNO_O')
+				ELSE IF @COLUMN_NAME IN ('custid','id_tag','IDN_BAN','idno','idn','IDNO_O','CUST_ID')
 				BEGIN
 					IF LEN(@columnList) >0 SET @columnList=@columnList+','
 					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',2)'
