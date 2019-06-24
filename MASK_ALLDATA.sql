@@ -1,4 +1,8 @@
-ALTER PROCEDURE [dbo].[MASK_ALLDATA]	
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+ALTER PROCEDURE [dbo].[_MASK_ALLDATA]	
 AS
 BEGIN
 	-- SET NOCOUNT ON added to prevent extra result sets from
@@ -7,7 +11,7 @@ BEGIN
  
 		DECLARE @TABLE_CATALOG nvarchar(128),@TABLE_SCHEMA nvarchar(128),@TABLE_NAME nvarchar(128)
 		DECLARE @COLUMN_NAME nvarchar(128),@CHARACTER_MAXIMUM_LENGTH INT
-		DECLARE @sqlCommand nvarchar(MAX),@columnList nvarchar(MAX)
+		DECLARE @sqlCommand nvarchar(MAX),@columnList nvarchar(MAX),@PIITYPE INT =-1
 
 		DECLARE CUR_TABLES CURSOR FOR 
 		SELECT TABLE_CATALOG,TABLE_SCHEMA,TABLE_NAME 
@@ -24,32 +28,33 @@ BEGIN
 			FETCH NEXT FROM CUR_COLUMNS INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH
 			WHILE @@FETCH_STATUS = 0  
 			BEGIN
+				SET @PIITYPE = -1
 				IF @COLUMN_NAME IN ('acctnmbr','cardnmbr','cust_nbr','clnt_nbr','fmsacctno','reln_nbr','cardnmbr_o','RW_ACCTBR','RWACCT_B','RWACT_CARD','ACCT')
 				BEGIN
-					IF LEN(@columnList) >0 SET @columnList=@columnList+','
-					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',3)'
+				    SET @PIITYPE = 3				
 				END
 				ELSE IF @COLUMN_NAME IN ('custid','id_tag','IDN_BAN','idno','idn','IDNO_O','CUST_ID','UNINUMBER')
 				BEGIN
-					IF LEN(@columnList) >0 SET @columnList=@columnList+','
-					SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',2)'
+				    SET @PIITYPE = 2					
 				END
 				ELSE IF @COLUMN_NAME IN ('custname','cust_name','CNAME','C_NAME') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
 				BEGIN
-				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
-				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',1)'
+				    SET @PIITYPE = 1				  
 				END
 				ELSE IF @COLUMN_NAME IN ('tel_buss','tel_home','tel_mobl','tel_othr','TEL','O_TEL','H_TEL','F_TEL','M_TEL')  
 				BEGIN
-				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
-				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',4)'
+				   SET @PIITYPE = 4				
 				END
                                 ELSE IF @COLUMN_NAME IN ('ADDR','ADD1','ADD2','ADDRESS','ADDR_1','ADDR_2')
 				BEGIN
-				    IF LEN(@columnList) >0 SET @columnList=@columnList+','
-				    SET @columnList=@columnList + @COLUMN_NAME +'=dbo.MASK_DATA('+@COLUMN_NAME+',5)'
+				    SET @PIITYPE = 5				  
 				END
-			 
+				
+				IF @PIITYPE > 0
+				BEGIN
+				   IF LEN(@columnList) >0 SET @columnList=@columnList+','
+				   SET @columnList=@columnList + @COLUMN_NAME +'=dbo._MASK_DATA('+@COLUMN_NAME+','+CAST(@PIITYPE AS VARCHAR)+')'
+				END	 
 
 
 				FETCH NEXT FROM CUR_COLUMNS INTO @COLUMN_NAME, @CHARACTER_MAXIMUM_LENGTH
