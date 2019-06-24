@@ -3,7 +3,7 @@
 -- Create date: 2019/06/21
 -- Description:	MASK DATA
 -- =============================================
-ALTER FUNCTION [dbo].[MASK_DATA]
+ALTER FUNCTION [dbo].[_MASK_DATA]
 (
 	-- Add the parameters for the function here
 	 @PIIDATA varchar(512),
