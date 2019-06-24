@@ -37,7 +37,7 @@ BEGIN
 				BEGIN
 				    SET @PIITYPE = 2					
 				END
-				ELSE IF @COLUMN_NAME IN ('custname','cust_name','CNAME','C_NAME') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%') AND @COLUMN_NAME='NAME')
+				ELSE IF @COLUMN_NAME IN ('custname','cust_name','CNAME','C_NAME') OR ((@TABLE_NAME LIKE 'Payment_All_Detail%' OR @TABLE_NAME LIKE 'URL_Z%' OR @TABLE_NAME LIKE 'Z4%' OR @TABLE_NAME LIKE 'UIDRP_Z%') AND @COLUMN_NAME='NAME')
 				BEGIN
 				    SET @PIITYPE = 1				  
 				END
@@ -45,7 +45,7 @@ BEGIN
 				BEGIN
 				   SET @PIITYPE = 4				
 				END
-                                ELSE IF @COLUMN_NAME IN ('ADDR','ADD1','ADD2','ADDRESS','ADDR_1','ADDR_2')
+                                ELSE IF @COLUMN_NAME IN ('ADDR','ADD1','ADD2','ADDRESS','ADDR_1','ADDR_2','REG_ADDR','COM_ADDR')
 				BEGIN
 				    SET @PIITYPE = 5				  
 				END
