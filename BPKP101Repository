@@ -1,0 +1,1009 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using IDRPModel.Models;
+using GTIMVC.Models;
+using GTICommon.Message;
+using System.IO;
+using Dapper;
+using System.Data;
+using GTIOpenXML;
+using System.Data.SqlClient;
+
+namespace IDRP.Models.BPKP
+{
+    public class BPKP101Repository : BaseRepository
+    {
+        private BPKP10101 _model;
+
+        public BPKP10101 Init()
+        {
+            _model = new BPKP10101();
+
+            return _model;
+        }
+
+        /// <summary>
+        /// 月付金不足額名單產出
+        /// </summary>
+        /// <param name="CollectionDate"></param>
+        /// <param name="SOEID"></param>
+        /// <param name="lsFMS"></param>
+        /// <returns></returns>
+        public MessageStatus BPKP10101_EXPORT(string CollectionDate, string SOEID, out List<FileMemoryStream> lsFMS)
+        {
+            lsFMS = new List<FileMemoryStream>();
+
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                strSQL = "UIDRP_BPKP10101_SP";
+
+                var result = conCOGDB2.ConnObj.QueryMultiple(strSQL,
+                    new { @MY_COLL_DATE = CollectionDate }, commandType: CommandType.StoredProcedure, commandTimeout: 600);
+                /*
+                 * 	SELECT @STATUS AS [Status] , @MESSAGE AS [Message]
+	             *  SELECT * FROM @PAYOFFLIST
+	             *  SELECT * FROM @PAY_OVER4
+	             *  SELECT * FROM @PAYOFFLIST_ALLBANK
+	             *  SELECT * FROM @IDRP_BPBASE_1
+	             *  SELECT * FROM @MYTEMP4
+                 */
+                BPKP10101 model = new BPKP10101
+                {
+                    msg = result.ReadFirstOrDefault<MessageStatus>(),
+                    lstPAYOFFLIST = result.Read<BPKP10101.PAYOFFLIST>().ToList(),
+                    lstPAY_OVER4 = result.Read<BPKP10101.PAY_OVER4>().ToList(),
+                    lstPAYOFFLIST_ALLBANK = result.Read<BPKP10101.PAYOFFLIST_ALLBANK>().ToList(),
+                    lstIDRP_BPBASE_1 = result.Read<BPKP10101.IDRP_BPBASE_1>().ToList(),
+                    lstMYTEMP4 = result.Read<BPKP10101.MYTEMP4>().ToList()
+                };
+
+                //Status 為 true 才執行匯出
+                if (model.msg.Status)
+                {
+                    MemoryStream ms = new MemoryStream();
+                    string strDTToday = DateTime.Now.ToString("yyyyMMdd");
+
+                    #region CHECK_PAYOFF_{0}.xls
+                    MessageStatus pms = ExportExcel(model.lstPAYOFFLIST, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("CHECK_PAYOFF_{0}.xls", strDTToday), MS = ms });
+
+                    #endregion
+
+                    #region CHECK_PAY_OVER4_{0}.xls
+
+                    pms = ExportExcel(model.lstPAY_OVER4, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("CHECK_PAY_OVER4_{0}.xls", strDTToday), MS = ms });
+                    #endregion
+
+                    #region CHECK_PAYOFF_{0}_ALLBANK.xls
+                    pms = ExportExcel(model.lstPAYOFFLIST_ALLBANK, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("CHECK_PAYOFF_{0}_ALLBANK.xls", strDTToday), MS = ms });
+                    #endregion
+
+                    #region IDRP_BPBASE_{0}.xls
+                    pms = ExportExcel(model.lstIDRP_BPBASE_1, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("IDRP_BPBASE_{0}.xls", strDTToday), MS = ms });
+                    #endregion
+
+                    #region MANUAL_CHECK_BP_{0}.xls
+                    pms = ExportExcel(model.lstMYTEMP4, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("MANUAL_CHECK_BP_{0}.xls", strDTToday), MS = ms });
+                    #endregion
+
+                    ResultMessage = model.msg;
+                }
+                else
+                    throw new Exception(model.msg.Message);
+            }
+            catch (Exception ex)
+            {
+                ResultMessage = new MessageStatus { Status = false, Message = string.Format("Error:{0}", ex.Message) };
+            }
+            finally
+            {
+                conCOGDB2.disconnect();
+            }
+
+            return ResultMessage;
+        }
+
+        /// <summary>
+        /// 轉Y12/Y62 : BP
+        /// 轉Y11/Y61 : KP
+        /// </summary>
+        /// <param name="RTYPE"></param>
+        /// <returns></returns>
+        public BPKP10102 BPKP10102_EXPORT(string RTYPE, string SOEID, BPKP10102.Steps Confirm, out int iCount, out MemoryStream ms)
+        {
+            ResultMessage = new MessageStatus();
+            BPKP10102 retResult = new BPKP10102();
+            strSQL = "UIDRP_BPKP10102_SP";
+
+            iCount = 0;
+            ms = new MemoryStream();
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                #region Summary Import Data to UFIP_RE_ACCT , UFIP_RE_INFO
+                var result = conCOGDB2.ConnObj.QueryMultiple(strSQL, new
+                {
+                    @RTYPE = RTYPE,
+                    @UPD_ID = SOEID,
+                    @ISFIRSTTIME = Confirm.ISFIRSTTIME,
+                    @ISCONTINUE = Confirm.ISCONTINUE
+                }, commandType: CommandType.StoredProcedure, commandTimeout: 600);
+
+                retResult = new BPKP10102
+                {
+                    Msg = result.Read<MessageStatus>().FirstOrDefault(),
+                    Step = result.Read<BPKP10102.Steps>().FirstOrDefault(),
+                    lstChkReturn = result.Read<BPKP10102.BPKP_TEMP002BP>().ToList(),
+                };
+
+                if (retResult.lstChkReturn.Count > 0)
+                {
+                    iCount = retResult.lstChkReturn.Count;
+                    retResult.Msg.Message += "\r\n" + "PLEASE CHECK 三電一函名單_NO_LOCATION ";
+                    ResultMessage = ExportExcel(retResult.lstChkReturn, out ms);
+                    retResult.Msg.Message += "\r\n" + ResultMessage.Message;
+                }
+
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                retResult.Msg = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                    conCOGDB2.disconnect();
+            }
+
+            return retResult;
+        }
+
+        /// <summary>
+        /// 月付金補繳足額名單產出
+        /// </summary>
+        /// <param name="SOEID"></param>
+        /// <param name="lsFMS"></param>
+        /// <returns></returns>
+        public MessageStatus BPKP10103_EXPORT(string SOEID, out List<FileMemoryStream> lsFMS)
+        {
+            lsFMS = new List<FileMemoryStream>();
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                strSQL = "UIDRP_BPKP10103_SP";
+
+                var result = conCOGDB2.ConnObj.QueryMultiple(strSQL, commandType: CommandType.StoredProcedure, commandTimeout: 600);
+                /*
+                 * 	SELECT @STATUS AS [Status] , @MESSAGE AS [Message]
+	             *  SELECT * FROM @IDRP_KPBASE
+	             *  SELECT * FROM @CHK_KBP_STATE
+                 */
+                BPKP10103 model = new BPKP10103
+                {
+                    msg = result.ReadFirstOrDefault<MessageStatus>(),
+                    lstIDRP_KPBASE = result.Read<BPKP10103.IDRP_KPBASE>().ToList(),
+                    lstCHK_KBP_STATE = result.Read<BPKP10103.CHK_KBP_STATE>().ToList(),
+                    lstKP = result.Read<BPKP10103.UIDRP_CACS_ROUTING_KP>().ToList()
+
+                };
+
+                //Status 為 true 才執行匯出
+                if (model.msg.Status)
+                {
+                    MemoryStream ms = new MemoryStream();
+                    string strDTToday = DateTime.Now.ToString("yyyyMMdd");
+
+                    #region IDRP_KPBASE_{0}.xls
+                    MessageStatus pms = ExportExcel(model.lstIDRP_KPBASE, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("IDRP_KPBASE_{0}.xls", strDTToday), MS = ms });
+
+                    #endregion
+                   
+
+
+                    #region idrp_bp_routing_chk_{0}.xls
+                    if (model.lstCHK_KBP_STATE.Count > 0)
+                    {
+                        pms = ExportExcel(model.lstCHK_KBP_STATE, out ms);
+
+                        if (!pms.Status)
+                            throw new Exception(string.Format("excel export:{0}", pms.Message));
+                        lsFMS.Add(new FileMemoryStream { FileName = string.Format("idrp_bp_routing_chk_{0}.xls", strDTToday), MS = ms });
+                        #endregion
+                    }
+
+
+                    pms = ExportExcel(model.lstKP, out ms);
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("CACS_ROUTING_KP_{0}.xls", strDTToday), MS = ms });
+
+
+                    ResultMessage = model.msg;
+                }
+                else
+                    throw new Exception(model.msg.Message);
+            }
+            catch (Exception ex)
+            {
+                ResultMessage = new MessageStatus { Status = false, Message = string.Format("Error:{0}", ex.Message) };
+            }
+            finally
+            {
+                conCOGDB2.disconnect();
+            }
+
+            return ResultMessage;
+        }
+
+        /// <summary>
+        /// CACS ROUTING EXCEPTION
+        /// </summary>
+        /// <param name="iCount"></param>
+        /// <param name="ms"></param>
+        /// <returns></returns>
+        public BPKP10105 BPKP10105_Export(out int iCount, out MemoryStream ms)
+        {
+            ResultMessage = new MessageStatus();
+            BPKP10105 retResult = new BPKP10105();
+            strSQL = "UIDRP_BPKP10105_SP";
+
+            iCount = 0;
+            ms = new MemoryStream();
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                #region UIDRP_BPKP10105_SP Query
+                var result = conCOGDB2.ConnObj.QueryMultiple(strSQL,
+                        commandType: CommandType.StoredProcedure, commandTimeout: 600);
+
+                retResult = new BPKP10105
+                {
+                    Msg = result.Read<MessageStatus>().FirstOrDefault(),
+                    lstEXCELEXPORT = result.Read<BPKP10105.EXCELEXPORT>().ToList(),
+                };
+
+                if (retResult.lstEXCELEXPORT.Count > 0)
+                {
+                    iCount = retResult.lstEXCELEXPORT.Count;
+                    ResultMessage = ExportExcel(retResult.lstEXCELEXPORT, out ms);
+                    if (!string.IsNullOrEmpty(ResultMessage.Message))
+                    {
+                        retResult.Msg.Message += "\r\n" + ResultMessage.Message;
+                    }
+                }
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                retResult.Msg = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                    conCOGDB2.disconnect();
+            }
+
+            return retResult;
+        }
+
+        public BPKP10106 BPKP10106_Export(BPKP10106.Steps Confirm, out int iCount, out MemoryStream ms)
+        {
+            ResultMessage = new MessageStatus();
+            BPKP10106 retResult = new BPKP10106();
+            strSQL = "UIDRP_BPKP10106_SP";
+
+            iCount = 0;
+            ms = new MemoryStream();
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                #region UIDRP_BPKP10106_SP Query
+                var result = conCOGDB2.ConnObj.QueryMultiple(strSQL, new { @ISFIRSTTIME = Confirm.ISFIRSTTIME, @ISCONTINUE = Confirm.ISCONTINUE },
+                        commandType: CommandType.StoredProcedure, commandTimeout: 600);
+
+                retResult = new BPKP10106
+                {
+                    Msg = result.Read<MessageStatus>().FirstOrDefault(),
+                    Step = result.Read<BPKP10106.Steps>().FirstOrDefault(),
+                    lstEXCELEXPORT = result.Read<BPKP10106.EXCELEXPORT>().ToList()
+                };
+
+                if (retResult.Step.ISCONTINUE && retResult.lstEXCELEXPORT.Count > 0)
+                {
+                    iCount = retResult.lstEXCELEXPORT.Count;
+                    ResultMessage = ExportExcel(retResult.lstEXCELEXPORT, out ms);
+                    if (!string.IsNullOrEmpty(ResultMessage.Message))
+                    {
+                        retResult.Msg.Message += "\r\n" + ResultMessage.Message;
+                    }
+                }
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                retResult.Msg = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                    conCOGDB2.disconnect();
+            }
+
+            return retResult;
+        }
+
+        /// <summary>
+        /// 繳款查詢
+        /// </summary>
+        /// <param name="v_CHKPYMT_ID"></param>
+        /// <param name="iCount"></param>
+        /// <param name="ms"></param>
+        /// <returns></returns>
+        public MessageStatus BPKP10107_Export(string v_CHKPYMT_ID, out List<FileMemoryStream> lsFMS,out string Zipname)
+        {
+            ResultMessage = new MessageStatus();
+            BPKP10107 retResult = new BPKP10107();
+            Zipname = "";
+            lsFMS = new List<FileMemoryStream>();
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                strSQL = "UIDRP_BPKP10107_SP";
+                #region UIDRP_BPKP10107_SP Query
+                var result = conCOGDB2.ConnObj.QueryMultiple(strSQL, new { @v_CHKPYMT_ID = v_CHKPYMT_ID },
+                        commandType: CommandType.StoredProcedure, commandTimeout: 600);
+
+
+                retResult.Msg = result.Read<MessageStatus>().FirstOrDefault();
+                // lstPMT_OUT = result.Read<BPKP10107.PMT_OUT>().ToList(),
+                retResult.lstALL_BANK_DTL = result.Read<BPKP10107.ALL_BANK_DTL>().ToList();
+                retResult.lstPYMT_DTL = result.Read<BPKP10107.PYMT_DTL>().ToList();
+                List<BPKP10107.EXCEL>  lstExcel = result.Read<BPKP10107.EXCEL>().ToList();
+                List<BPKP10107.EXCELCELL> lstExcelCell = result.Read<BPKP10107.EXCELCELL>().ToList();
+                retResult.ZIPNAME = result.Read<BPKP10107.Zip>().FirstOrDefault();
+
+                Zipname = retResult.ZIPNAME.ZipName;
+
+
+                //Status 為 true 才執行匯出
+                if (retResult.Msg.Status)
+                {
+                    MemoryStream ms = new MemoryStream();
+                    string strDTToday = DateTime.Now.ToString("yyyyMMdd");
+
+                    #region PMT_DTL_{0}_{1}.xls , v_CHKPYMT_ID , yyyyMMdd
+                    //MessageStatus pms = ExportExcel(retResult.lstPMT_OUT, out ms);
+
+                  //  if (!pms.Status)
+                   //     throw new Exception(string.Format("excel export:{0}", pms.Message));
+                  //  lsFMS.Add(new FileMemoryStream { FileName = string.Format("PMT_DTL_{0}_{1}.xls", v_CHKPYMT_ID, strDTToday), MS = ms });
+
+                    #endregion
+
+                    #region ORI_BAL_{0}_{1}.xls , v_CHKPYMT_ID , yyyyMMdd
+                    MessageStatus pms = ExportExcel(retResult.lstALL_BANK_DTL, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("ORI_BAL_{0}_{1}.xls", v_CHKPYMT_ID, strDTToday), MS = ms });
+
+                    #endregion
+
+                    #region PMT_REC_{0}_{1}.xls , v_CHKPYMT_ID , yyyyMMdd
+                    pms = ExportExcel(retResult.lstPYMT_DTL, out ms);
+
+                    if (!pms.Status)
+                        throw new Exception(string.Format("excel export:{0}", pms.Message));
+                    lsFMS.Add(new FileMemoryStream { FileName = string.Format("PMT_REC_{0}_{1}.xls", v_CHKPYMT_ID, strDTToday), MS = ms });
+
+                    #endregion
+
+                    #region Excel OLE
+
+                    if (lstExcel != null)
+                    {
+                        //string strTemplateFolder = HttpContext.Current.Server.MapPath("~/Excel/Template/BPKP/");
+                        //string strTemplate = retResult.Excel.TEMPLATE;
+                        //string TemplateFile = retResult.Excel.FILENAME;
+                        //if (!string.IsNullOrEmpty(strTemplate))
+                        //{
+                        //    if (!File.Exists(Path.Combine(strTemplateFolder, strTemplate)))
+                        //        throw new Exception(string.Format("路徑:{0}，查無範本:{1}", strTemplateFolder, strTemplate));
+
+                        //    #region setup ole sheet info
+                        //    List<ExcelOLE.SheetInfo> si = new List<ExcelOLE.SheetInfo>();
+
+                        //    List<BPKP10107.EXCELCELL> cells = retResult.lstExcelCell.Where(x => x.PARENTID == retResult.Excel.GUID).ToList();
+                        //    si.Add(new ExcelOLE.SheetInfo
+                        //    {
+                        //        SheetName = retResult.Excel.SHEETNAME,
+                        //        Cells = cells.Select(x => new ExcelOLE.CellInfo
+                        //        {
+                        //            X = x.CELL_X,
+                        //            Y = x.CELL_Y,
+                        //            CellValue = x.CELLVALUE,
+                        //            CellType = x.CELLTYPE
+                        //        }).ToList()
+                        //    });
+
+                        //    using (FileStream fs = new FileStream(Path.Combine(strTemplateFolder, strTemplate), FileMode.Open, FileAccess.Read))
+                        //    {
+                        //        ExcelOLE ole = new ExcelOLE(fs, Path.GetExtension(Path.Combine(strTemplateFolder, strTemplate)) == ".xls");
+                        //        ms = new MemoryStream();
+                        //        ole.TemplateExport(si, out ms);
+
+                        //        lsFMS.Add(new FileMemoryStream
+                        //        {
+                        //            FileName = retResult.Excel.FILENAME,
+                        //            MS = ms
+                        //        });
+                        //    }
+                        //    #endregion
+                        //}
+                        string strTemplateFolder = HttpContext.Current.Server.MapPath("~/Excel/Template/BPKP/");
+                        //string strTemplate = string.Empty;
+                        string TemplateFile = string.Empty;
+
+                        int sheetCount = 1;
+                         ms = new MemoryStream();
+                        //TemplateOLE exportTemplateOLE = new TemplateOLE();
+                        //  List<FileMemoryStream> lstFMS = new List<FileMemoryStream>();
+
+                        List<Guid> lstGuid = new List<Guid>();
+                        List<Guid> lstGroupGuid = new List<Guid>();
+
+                        lstGroupGuid = lstExcel.Select(x => x.GROUPGUID).Distinct().ToList();
+                        if (lstGroupGuid.Count > 0)
+                        {
+                            foreach (Guid key in lstGroupGuid)
+                            {
+                                List<ExcelOLE.SheetInfo> si = new List<ExcelOLE.SheetInfo>();
+                                List<BPKP10107.EXCEL> lstSheetSettingOfGroup = lstExcel.Where(x => x.GROUPGUID == key).ToList();
+                                List<string> sheetName = lstSheetSettingOfGroup.Select(x => x.SHEETNAME).Distinct().ToList();
+
+                                foreach (string skey in sheetName)
+                                {
+                                    BPKP10107.EXCEL thisSheetSetting = lstSheetSettingOfGroup.Where(x => x.SHEETNAME == skey).FirstOrDefault();
+
+                                    #region check template setting
+                                    if (sheetCount == 1 && thisSheetSetting == null)
+                                    {
+                                        throw new Exception("SQL:未設定主sheet raw data");
+                                    }
+
+                                    string strTemplate = thisSheetSetting.TEMPLATE;
+                                    TemplateFile = string.Format("{0}.xls", strTemplate);
+                                    if (!File.Exists(strTemplateFolder + TemplateFile))
+                                        throw new Exception(string.Format("路徑:{0}，查無範本:{1}", strTemplateFolder, TemplateFile));
+
+                                    #endregion
+
+                                    #region setup ole sheet info
+                                    List<BPKP10107.EXCELCELL> Sheet_CELL = lstExcelCell.Where(x => x.PARENTID == thisSheetSetting.GUID).ToList();
+                                    si.Add(new ExcelOLE.SheetInfo
+                                    {
+                                        SheetName = thisSheetSetting.SHEETNAME,
+                                        Cells = Sheet_CELL.Select(x => new ExcelOLE.CellInfo
+                                        {
+                                            X = x.CELL_X,
+                                            Y = x.CELL_Y,
+                                            CellValue = x.CELLVALUE,
+                                            CellType = x.CELLTYPE
+                                        }).ToList()
+                                    });
+                                    #endregion
+
+                                    #region save data to FileMemoryString
+                                    using (FileStream fs = new FileStream(strTemplateFolder + TemplateFile, FileMode.Open, FileAccess.Read))
+                                    {
+                                        ExcelOLE ole = new ExcelOLE(fs, Path.GetExtension(strTemplateFolder + TemplateFile) == ".xls");
+                                        ms = new MemoryStream();
+                                        ole.TemplateExport(si, out ms);
+
+                                        lsFMS.Add(new FileMemoryStream
+                                        {
+                                            FileName = thisSheetSetting.FILENAME,
+                                            MS = ms
+                                        });
+                                    }
+                                    #endregion
+
+                                    sheetCount += 1;
+                                }
+                            }
+                        }
+
+
+
+
+                    }
+                    #endregion
+                }
+                else
+                    throw new Exception(retResult.Msg.Message);
+
+
+                //if (retResult.Msg.Status && iCount > 0)
+                //{
+                //    ResultMessage = ExportExcel_MultiSheet(retResult, out ms);
+                //    if (!string.IsNullOrEmpty(ResultMessage.Message))
+                //    {
+                //        retResult.Msg.Message += "\r\n" + ResultMessage.Message;
+                //    }
+                //    retResult.Msg.Status = ResultMessage.Status;
+                //}
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                retResult.Msg = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                    conCOGDB2.disconnect();
+            }
+
+            return retResult.Msg;
+        }
+
+        /// <summary>
+        /// 批次上傳產生繳款明細
+        /// </summary>
+        /// <param name="iCount"></param>
+        /// <param name="ms"></param>
+        /// <returns></returns>
+        public BPKP10108 BPKP10108_Export(out int iCount, out MemoryStream ms)
+        {
+            ResultMessage = new MessageStatus();
+            BPKP10108 retResult = new BPKP10108();
+            strSQL = "UIDRP_BPKP10108_SP";
+
+            iCount = 0;
+            ms = new MemoryStream();
+
+            try
+            {
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                //取得 id 清單
+                List<string> lstID = new List<string>();
+                lstID.Add("A123456789");
+                List<BPKP10108> lstResult = new List<BPKP10108>();
+                for (int i = 0; i < lstID.Count; i++)
+                {
+                    #region UIDRP_BPKP10108_SP Query
+                    //var result = conCOGDB2.ConnObj.QueryMultiple(strSQL, new { @v_CHKPYMT_ID = lstID[i] },
+                    //        commandType: CommandType.StoredProcedure, commandTimeout: 600);
+
+                    //retResult = new BPKP10108
+                    //{
+                    //    Msg = result.Read<MessageStatus>().FirstOrDefault(),
+                    //    lstPMT_OUT = result.Read<BPKP10108.PMT_OUT>().ToList(),
+                    //    lstALL_BANK_DTL = result.Read<BPKP10108.ALL_BANK_DTL>().ToList(),
+                    //    lstPYMT_DTL = result.Read<BPKP10108.PYMT_DTL>().ToList(),
+                    //};
+
+                    retResult = new BPKP10108
+                    {
+                        Msg = new MessageStatus { Status = true, Message = "" },
+                        lstPMT_OUT = Enumerable.Range(1, 10).Select(x => new BPKP10108.PMT_OUT
+                        {
+                            ACT_AMT = x.ToString("0000000000"),
+                            CUSTID = x.ToString("0000000000"),
+                            CUSTNAME = x.ToString("0000000000"),
+                            DIS_AMT = x.ToString("0000000000"),
+                            DIS_DATE = x.ToString("0000000000"),
+                            REC_ACCT = x.ToString("0000000000"),
+                            REC_BANK = x.ToString("0000000000"),
+                            TXDATE = x.ToString("0000000000"),
+                            TXTYPE = x.ToString("0000000000")
+                        }).ToList(),
+                        lstALL_BANK_DTL = Enumerable.Range(1, 10).Select(x => new BPKP10108.ALL_BANK_DTL
+                        {
+                            BANKCODE = x.ToString("0000000000"),
+                            CUSTNAME = x.ToString("0000000000"),
+                            BANKNAME = x.ToString("0000000000"),
+                            CUSTID = x.ToString("0000000000"),
+                            OSBAL = x.ToString("0000000000")
+                        }).ToList(),
+                        lstPYMT_DTL = Enumerable.Range(1, 10).Select(x => new BPKP10108.PYMT_DTL
+                        {
+                            CUSTID = x.ToString("0000000000"),
+                            CUSTNAME = x.ToString("0000000000"),
+                            IBRS_DATE = x.ToString("0000000000"),
+                            PAYAMNT = x.ToString("0000000000"),
+                            PAYDATE = x.ToString("0000000000"),
+                            REC_DATE = x.ToString("0000000000")
+                        }).ToList(),
+                    };
+
+                    lstResult.Add(retResult);
+                    #endregion
+                }
+
+                iCount = retResult.lstPMT_OUT.Count + retResult.lstALL_BANK_DTL.Count + retResult.lstPYMT_DTL.Count;
+
+                if (retResult.Msg.Status && iCount > 0)
+                {
+
+                    ResultMessage = ExportExcel_MultiSheet<BPKP10108>(retResult, out ms);
+                    if (!string.IsNullOrEmpty(ResultMessage.Message))
+                    {
+                        retResult.Msg.Message += "\r\n" + ResultMessage.Message;
+                    }
+                    retResult.Msg.Status = ResultMessage.Status;
+                }
+            }
+            catch (Exception ex)
+            {
+                retResult.Msg = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                    conCOGDB2.disconnect();
+            }
+
+            return retResult;
+        }
+        // , out List<FileMemoryStream> lsFMS
+        public MessageStatus BPKP10106_UPLOAD(string fullFilePath)
+        {
+            // BPKP10108 retResult = new BPKP10108();
+            DataTable dtExcel = ReadExcelFile("0", fullFilePath, 0);
+            List<BPKP10106.UIDRP_BPKP_PAYOFF_LIST> lstBPKP = new List<BPKP10106.UIDRP_BPKP_PAYOFF_LIST>();
+            //  string TBName = "dbo.UIDRP_BPKP_PAYOFF_LIST";
+            try
+            {
+                foreach (DataRow wsRow in dtExcel.Rows)
+                {
+                    lstBPKP.Add(new BPKP10106.UIDRP_BPKP_PAYOFF_LIST
+                    {
+
+                        IDNO = wsRow[0].ToString(),
+                        PAYOFF_D = wsRow[1].ToString().Trim().Equals("") ? (DateTime?)null : Convert.ToDateTime(wsRow[1].ToString()),
+
+                    });
+                }
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+                strSQL = "Delete from [dbo].[UIDRP_BPKP_PAYOFF_LIST]";
+                conCOGDB2.ConnObj.Execute(strSQL);
+
+                strSQL = "INSERT INTO [dbo].[UIDRP_BPKP_PAYOFF_LIST]" +
+                        "           ([IDNO]"
+                                  + ",[PAYOFF_D])" +
+                        "     VALUES" +
+                        "           (@IDNO"
+                                  + ",@PAYOFF_D)";
+
+
+                if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                //Append Excel data to table
+                conCOGDB2.ConnObj.Execute(strSQL, lstBPKP);
+
+                ResultMessage.Status = true;
+            }
+            catch (Exception ex)
+            {
+                ResultMessage = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.disconnect();
+                }
+            }
+            return ResultMessage;
+
+
+        }
+
+        /// <summary>
+        /// 批次上傳產生繳款明細
+        /// </summary>
+        /// <param name="FilePath"></param>
+        /// <param name="SOEID"></param>
+        /// <param name="lsFMS"></param>
+        /// <returns></returns>
+        public MessageStatus BPKP10108_Upload(string FilePath, string SOEID, out List<FileMemoryStream> lsFMS)
+        {
+            lsFMS = new List<FileMemoryStream>();
+            BPKP10108 retResult = new BPKP10108();
+            List<BPKP10108.IDLIST_TB> lstIDLIST_TB = new List<BPKP10108.IDLIST_TB>();
+            try
+            {
+                #region Check Excel file
+                DataTable dt = ExportExcelExtensions.ReadExcelFile("0", FilePath, headrow: 0);
+                if (dt.Columns[0].ColumnName != "CUSTID") throw new Exception("Excel 欄位名稱不符 (CUSTID)");
+                foreach (DataRow wsRow in dt.Rows)
+                {
+                    lstIDLIST_TB.Add(new BPKP10108.IDLIST_TB
+                    {
+                        CUSTID = wsRow[0].ToString().Trim()
+
+                     });
+                 }
+
+
+                #endregion
+            if (!conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.connect();
+                }
+
+                using (SqlConnection conn = conCOGDB2.ConnObj)
+                {
+                    //建立全預暫存資料表 for sp batch
+                    string strTempTable = @"CREATE TABLE #IDLIST_TB 
+                    (
+                        CUSTID VARCHAR(10)
+                    )";
+                    //SqlCommand comm = new SqlCommand(strTempTable, conn);
+                    //comm.ExecuteNonQuery();
+                    conn.Execute(strTempTable);
+
+                    strSQL = "INSERT INTO #IDLIST_TB" +
+                      "           (CUSTID)" +
+                      "     VALUES" +
+                      "           (@CUSTID)";
+
+
+                    //conCOGDB2.connect();
+
+                    //Append Excel data to table
+                    conCOGDB2.ConnObj.Execute(strSQL, lstIDLIST_TB);
+
+                    //    using (SqlBulkCopy copy = new SqlBulkCopy(conn))
+                    //{
+                    //    copy.DestinationTableName = "#IDLIST_TB";
+                    //    copy.WriteToServer(dt);
+                    //}
+
+
+                    strSQL = "UIDRP_BPKP10108_SP";
+                    #region UIDRP_BPKP10108_SP Query
+                    var result = conn.QueryMultiple(strSQL, new { @v_CHKPYMT_ID = SOEID },
+                            commandType: CommandType.StoredProcedure, commandTimeout: 600);
+
+                    retResult = new BPKP10108
+                    {
+                        Msg = result.Read<MessageStatus>().FirstOrDefault(),
+                        lstEXPMT_OUT = result.Read<BPKP10108.EX_PMT_OUT>().ToList(),
+                        lstEXALL_BANK_DTL = result.Read<BPKP10108.EX_ALL_BANK_DTL>().ToList(),
+                        lstEXPYMT_DTL = result.Read<BPKP10108.EX_PYMT_DTL>().ToList(),
+                        lstExcel = result.Read<BPKP10108.EXCEL>().ToList(),
+                        lstExcelCell = result.Read<BPKP10108.EXCELCELL>().ToList()
+                    };
+                }
+
+
+                //Status 為 true 才執行匯出
+                if (retResult.Msg.Status)
+                {
+                    MemoryStream ms = new MemoryStream();
+                    string strDTToday = DateTime.Now.ToString("yyyyMMdd");
+
+                    #region PMT_DTL_{0}_{1}.xls , v_CHKPYMT_ID , yyyyMMdd
+                    List<string> lstFile = retResult.lstEXPMT_OUT.Select(x => x.FILENAME).Distinct().ToList();
+                    foreach (var filename in lstFile)
+                    {
+                        retResult.lstPMT_OUT = retResult.lstEXPMT_OUT.Where(x => x.FILENAME == filename)
+                            .Select(x => new BPKP10108.PMT_OUT
+                            {
+                                CUSTID = x.CUSTID,
+                                CUSTNAME = x.CUSTNAME,
+                                DIS_DATE = x.DIS_DATE,
+                                REC_BANK = x.REC_BANK,
+                                TXTYPE = x.TXTYPE,
+                                TXDATE = x.TXDATE,
+                                REC_ACCT = x.REC_ACCT,
+                                DIS_AMT = x.DIS_AMT,
+                                ACT_AMT = x.ACT_AMT
+                            }
+                        ).ToList();
+                        ms = new MemoryStream();
+                        ResultMessage = ExportExcel(retResult.lstPMT_OUT, out ms);
+                        if (ResultMessage.Status)
+                        {
+                            lsFMS.Add(new FileMemoryStream { FileName = string.Format("{0}.xls", filename), MS = ms });
+                        }
+                        else
+                            throw new Exception(string.Format("Repository Error(PMT_OUT):{0}", ResultMessage.Message));
+                    }
+                    #endregion
+
+                    #region ORI_BAL_{0}_{1}.xls , v_CHKPYMT_ID , yyyyMMdd
+                    lstFile = retResult.lstEXALL_BANK_DTL.Select(x => x.FILENAME).Distinct().ToList();
+                    foreach (var filename in lstFile)
+                    {
+                        retResult.lstALL_BANK_DTL = retResult.lstEXALL_BANK_DTL.Where(x => x.FILENAME == filename)
+                            .Select(x => new BPKP10108.ALL_BANK_DTL
+                            {
+                                CUSTID = x.CUSTID,
+                                CUSTNAME = x.CUSTNAME,
+                                BANKCODE = x.BANKCODE,
+                                BANKNAME = x.BANKNAME,
+                                OSBAL = x.OSBAL
+                            }
+                        ).ToList();
+                        ms = new MemoryStream();
+                        ResultMessage = ExportExcel(retResult.lstALL_BANK_DTL, out ms);
+                        if (ResultMessage.Status)
+                        {
+                            lsFMS.Add(new FileMemoryStream { FileName = string.Format("{0}.xls", filename), MS = ms });
+                        }
+                        else
+                            throw new Exception(string.Format("Repository Error(ORI_BAL):{0}", ResultMessage.Message));
+                    }
+                    #endregion
+
+                    #region PMT_REC_{0}_{1}.xls , v_CHKPYMT_ID , yyyyMMdd
+                    lstFile = retResult.lstEXPYMT_DTL.Select(x => x.FILENAME).Distinct().ToList();
+                    foreach (var filename in lstFile)
+                    {
+                        retResult.lstPYMT_DTL = retResult.lstEXPYMT_DTL.Where(x => x.FILENAME == filename)
+                            .Select(x => new BPKP10108.PYMT_DTL
+                            {
+                                CUSTID = x.CUSTID,
+                                CUSTNAME = x.CUSTNAME,
+                                PAYDATE = x.PAYDATE,
+                                PAYAMNT = x.PAYAMNT,
+                                REC_DATE = x.REC_DATE,
+                                IBRS_DATE = x.IBRS_DATE
+                            }
+                        ).ToList();
+                        ms = new MemoryStream();
+                        ResultMessage = ExportExcel(retResult.lstPYMT_DTL, out ms);
+                        if (ResultMessage.Status)
+                        {
+                            lsFMS.Add(new FileMemoryStream { FileName = string.Format("{0}.xls", filename), MS = ms });
+                        }
+                        else
+                            throw new Exception(string.Format("Repository Error(PMT_REC):{0}", ResultMessage.Message));
+                    }
+                    #endregion
+
+                    #region Excel OLE
+
+                    if (retResult.lstExcel.Count > 0)
+                    {
+                        for (int i = 0; i < retResult.lstExcel.Count; i++)
+                        {
+                            string strTemplateFolder = HttpContext.Current.Server.MapPath("~/Excel/Template/BPKP/");
+
+                            BPKP10108.EXCEL excel = retResult.lstExcel[i];
+                            Guid key = excel.GROUPGUID;
+                            string strTemplate = excel.TEMPLATE;
+                            string TemplateFile = excel.FILENAME;
+
+                            if (!string.IsNullOrEmpty(strTemplate))
+                            {
+                                if (!File.Exists(Path.Combine(strTemplateFolder, strTemplate)))
+                                    throw new Exception(string.Format("路徑:{0}，查無範本:{1}", strTemplateFolder, strTemplate));
+
+                                #region setup ole sheet info
+                                List<ExcelOLE.SheetInfo> si = new List<ExcelOLE.SheetInfo>();
+
+                                List<BPKP10107.EXCELCELL> cells = retResult.lstExcelCell.Where(x => x.PARENTID == excel.GUID).ToList();
+                                si.Add(new ExcelOLE.SheetInfo
+                                {
+                                    SheetName = excel.SHEETNAME,
+                                    Cells = cells.Select(x => new ExcelOLE.CellInfo
+                                    {
+                                        X = x.CELL_X,
+                                        Y = x.CELL_Y,
+                                        CellValue = x.CELLVALUE,
+                                        CellType = x.CELLTYPE
+                                    }).ToList()
+                                });
+
+                                using (FileStream fs = new FileStream(Path.Combine(strTemplateFolder, strTemplate), FileMode.Open, FileAccess.Read))
+                                {
+                                    ExcelOLE ole = new ExcelOLE(fs, Path.GetExtension(Path.Combine(strTemplateFolder, strTemplate)) == ".xls");
+                                    ms = new MemoryStream();
+                                    ole.TemplateExport(si, out ms);
+
+                                    lsFMS.Add(new FileMemoryStream
+                                    {
+                                        FileName = excel.FILENAME,
+                                        MS = ms
+                                    });
+                                }
+                                #endregion
+                            }
+                        }
+                    }
+                    #endregion
+                }
+                else
+                    throw new Exception(retResult.Msg.Message);
+
+
+                #endregion
+            }
+            catch (Exception ex)
+            {
+                ResultMessage = new MessageStatus { Status = false, Message = ex.Message };
+            }
+            finally
+            {
+                if (conCOGDB2.IsConnected)
+                {
+                    conCOGDB2.disconnect();
+                }
+            }
+            return ResultMessage;
+        }
+    }
+}
