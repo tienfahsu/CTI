@@ -1,0 +1,11 @@
+ //TEXT FILE
+                StringBuilder sbTxt = new StringBuilder();
+                foreach (MISRPT104ViewModel.WAIVE_FORM Item in retResult.lstEXCELEXPORT_OUT2)
+                {
+                    sbTxt.Append(Item.ACCTNMBR.PadLeft(16)); //16
+                    sbTxt.Append(Item.TXN_CODE); //3
+                    sbTxt.AppendFormat("{0:000000000}", Convert.ToDecimal(Item.AMT) * 100); // 9 ,2 
+                    sbTxt.Append("10000");
+                    sbTxt.Append(Item.TXN_DESC.PadRight(40));
+                    sbTxt.AppendLine();
+                }
