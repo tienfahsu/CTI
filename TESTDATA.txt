@@ -14,8 +14,11 @@ UPLOAD_CACS
 
 UPLOAD_CACS
 
-IN ('U220915422','A101087191','S223429476')
+IN ('U220915422','A101087191','S223429476') 
 
+
+
+http://122.146.6.44/citibank/driver/UF.zip
 
 http://122.146.6.44/citibank/driver/CC.zip
 http://122.146.6.44/citibank/driver/UP.zip
@@ -23,6 +26,16 @@ http://122.146.6.44/citibank/driver/FB.zip
 https://github.com/tienfahsu/ZIP/raw/master/ControlCenter.zip
 https://github.com/tienfahsu/ZIP/raw/master/UPortal.zip
 https://github.com/tienfahsu/ZIP/raw/master/FB.zip
+
+
+URL_DS_RMS
+UPDA_DISC101130_WITHDRAW_THIS_DISCOUNT_
+URL_MCA10100_SP
+URL_DBATCH10100_SP
+
+
+
+ 
 
 
 
