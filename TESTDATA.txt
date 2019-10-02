@@ -16,6 +16,12 @@ UPLOAD_CACS
 
 IN ('U220915422','A101087191','S223429476') 
 
+
+http://122.146.6.44/citibank/driver/NE.zip
+http://122.146.6.44/citibank/driver/CB.zip
+http://122.146.6.44/citibank/driver/DB.zip
+http://122.146.6.44/citibank/driver/Dbf.zip
+
 http://122.146.6.44/citibank/driver/DE.zip
 http://122.146.6.44/citibank/driver/FI.zip
 http://122.146.6.44/citibank/driver/AL.zip
