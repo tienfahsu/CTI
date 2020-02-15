@@ -46,7 +46,8 @@ URL_MCA10100_SP
 URL_DBATCH10100_SP
 
 
-
+http://demo.pizzaclub.com.tw/citibank/SP/RESERVE.zip
+http://demo.pizzaclub.com.tw/citibank/SP/Utils.zip
  
 
 
